@@ -1,0 +1,37 @@
+name: "Terraform CI/CD pipeline"
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform_pipeline:
+    name: "Infrastructure pipeline"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+      - name: Initialize Working Directory
+        run: terraform init
+      - name: Validate syntax
+        run: terraform validate
+      - name: Generate Execution Plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color
+      - name: Execute Deployment
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve
+      - name: Verify Infrastructure State
+        if: github.ref = 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          STATUS=$(docker inspect -f '{{.State.Status}}' nginx1)
+          echo "checking status of container: $STATUS"
+          if ["$STATUS" != "running"]; then exit 1; fi
